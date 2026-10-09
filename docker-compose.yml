@@ -1,0 +1,189 @@
+services:
+
+  # ── PostgreSQL ─────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: pfe-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ──────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: pfe-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── API FastAPI ────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile-api
+    container_name: pfe-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT}
+      DEBUG: ${DEBUG}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8080,http://localhost:5173,http://app.pfe.local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Frontend (React SPA served by nginx, proxies /api → api) ──
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile-frontend
+    container_name: pfe-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+  # ── Worker Pipeline ────────────────────────────────────────────
+  worker-pipeline:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile-worker
+    container_name: pfe-worker-pipeline
+    restart: unless-stopped
+    command: celery -A src.worker.worker.celery_app worker -Q celery --loglevel=info --concurrency=2
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT}
+      PLAYWRIGHT_SERVICE_URL: http://playwright:3001
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Worker Categories ──────────────────────────────────────────
+  worker-categories:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile-worker
+    container_name: pfe-worker-categories
+    restart: unless-stopped
+    command: celery -A src.worker.worker.celery_app worker -Q categories --loglevel=info --concurrency=4
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT}
+      PLAYWRIGHT_SERVICE_URL: http://playwright:3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Worker Products ────────────────────────────────────────────
+  worker-products:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile-worker
+    container_name: pfe-worker-products
+    restart: unless-stopped
+    command: celery -A src.worker.worker.celery_app worker -Q products --loglevel=info --concurrency=8
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT}
+      PLAYWRIGHT_SERVICE_URL: http://playwright:3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── FlareSolverr ───────────────────────────────────────────────
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: pfe-flaresolverr
+    restart: unless-stopped
+    ports:
+      - "8191:8191"
+    environment:
+      - LOG_LEVEL=info
+
+  # ── Playwright Service ─────────────────────────────────────────
+  playwright:
+    build:
+      context: ./playwright-service
+      dockerfile: Dockerfile
+    container_name: pfe-playwright
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      FLARESOLVERR_URL: http://flaresolverr:8191/v1
+    depends_on:
+      - flaresolverr
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  # ── Flower — Celery monitoring ────────────────────────────────
+  flower:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile-worker
+    container_name: pfe-flower
+    restart: unless-stopped
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    depends_on:
+      - redis
+    command: celery -A src.worker.worker.celery_app flower --port=5555
+
+volumes:
+  postgres_data:

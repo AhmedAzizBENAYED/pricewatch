@@ -1,0 +1,382 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-api
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  api-dashboard.json: |
+    {
+      "title": "PFE — API & Scraping",
+      "uid": "pfe-api-scraping",
+      "timezone": "browser",
+      "refresh": "10s",
+      "time": { "from": "now-30m", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Requêtes API / seconde",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(rate(http_requests_total{job=\"api\"}[1m])) by (handler, method)",
+              "legendFormat": "{{method}} {{handler}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } }
+          }
+        },
+        {
+          "id": 2,
+          "title": "Latence API — P50 / P95 / P99",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"api\"}[5m])) by (le))",
+              "legendFormat": "P50"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"api\"}[5m])) by (le))",
+              "legendFormat": "P95"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"api\"}[5m])) by (le))",
+              "legendFormat": "P99"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "s", "color": { "mode": "palette-classic" } }
+          }
+        },
+        {
+          "id": 3,
+          "title": "Erreurs HTTP 4xx / 5xx",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+          "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(rate(http_requests_total{job=\"api\", status=~\"4..\"}[1m]))",
+              "legendFormat": "4xx"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(rate(http_requests_total{job=\"api\", status=~\"5..\"}[1m]))",
+              "legendFormat": "5xx"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "color": { "mode": "fixed" },
+              "custom": { "thresholdsStyle": { "mode": "line" } }
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "4xx" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "5xx" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+            ]
+          }
+        },
+        {
+          "id": 4,
+          "title": "Requêtes totales par statut HTTP",
+          "type": "piechart",
+          "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+          "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(increase(http_requests_total{job=\"api\"}[30m])) by (status)",
+              "legendFormat": "HTTP {{status}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "color": { "mode": "palette-classic" } }
+          }
+        },
+        {
+          "id": 5,
+          "title": "CPU — Workers & Playwright (cores)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+          "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"pfe-app\", pod=~\"worker-pipeline.*\"}[1m]))",
+              "legendFormat": "worker-pipeline"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"pfe-app\", pod=~\"worker-categories.*\"}[1m]))",
+              "legendFormat": "worker-categories"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"pfe-app\", pod=~\"worker-products.*\"}[1m]))",
+              "legendFormat": "worker-products"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"pfe-app\", pod=~\"playwright.*\"}[1m]))",
+              "legendFormat": "playwright"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+          }
+        },
+        {
+          "id": 6,
+          "title": "Mémoire — Workers & Playwright (Mo)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+          "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"pfe-app\", pod=~\"worker-pipeline.*\"}) / 1024 / 1024",
+              "legendFormat": "worker-pipeline"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"pfe-app\", pod=~\"worker-categories.*\"}) / 1024 / 1024",
+              "legendFormat": "worker-categories"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"pfe-app\", pod=~\"worker-products.*\"}) / 1024 / 1024",
+              "legendFormat": "worker-products"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"pfe-app\", pod=~\"playwright.*\"}) / 1024 / 1024",
+              "legendFormat": "playwright"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "megabytes", "color": { "mode": "palette-classic" } }
+          }
+        },
+        {
+          "id": 7,
+          "title": "Redémarrages de containers (crashs)",
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+          "gridPos": { "x": 0, "y": 24, "w": 24, "h": 6 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"pfe-app\"}[1h])) by (pod)",
+              "legendFormat": "{{pod}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 1 },
+                  { "color": "red", "value": 3 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            }
+          },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal" }
+        }
+      ]
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-infra
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  infra-dashboard.json: |
+    {
+      "title": "PFE — Infrastructure (PostgreSQL & Redis)",
+      "uid": "pfe-infra",
+      "timezone": "browser",
+      "refresh": "15s",
+      "time": { "from": "now-30m", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "CPU — PostgreSQL & Redis (cores)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"pfe-infra\", pod=~\"postgres.*\"}[1m]))",
+              "legendFormat": "postgres"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"pfe-infra\", pod=~\"redis.*\"}[1m]))",
+              "legendFormat": "redis"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+          }
+        },
+        {
+          "id": 2,
+          "title": "Mémoire — PostgreSQL & Redis (Mo)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"pfe-infra\", pod=~\"postgres.*\"}) / 1024 / 1024",
+              "legendFormat": "postgres"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"pfe-infra\", pod=~\"redis.*\"}) / 1024 / 1024",
+              "legendFormat": "redis"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "megabytes", "color": { "mode": "palette-classic" } }
+          }
+        },
+        {
+          "id": 3,
+          "title": "CPU — API (cores)",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+          "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"pfe-app\", pod=~\"api.*\"}[1m]))",
+              "legendFormat": "api"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+          }
+        },
+        {
+          "id": 4,
+          "title": "Mémoire — Tous les pods pfe-app (Mo)",
+          "type": "bargauge",
+          "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+          "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"pfe-app\", container!=\"\"}) by (pod) / 1024 / 1024",
+              "legendFormat": "{{pod}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "megabytes",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 400 },
+                  { "color": "red", "value": 900 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            }
+          },
+          "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "id": 5,
+          "title": "Pods en cours d'exécution",
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+          "gridPos": { "x": 0, "y": 16, "w": 8, "h": 5 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "count(kube_pod_status_phase{namespace=\"pfe-app\", phase=\"Running\"})",
+              "legendFormat": "pfe-app"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 8 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            }
+          }
+        },
+        {
+          "id": 6,
+          "title": "Pods en erreur",
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+          "gridPos": { "x": 8, "y": 16, "w": 8, "h": 5 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "count(kube_pod_status_phase{namespace=\"pfe-app\", phase=~\"Failed|Unknown\"}) or vector(0)",
+              "legendFormat": "pods en erreur"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 1 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            }
+          }
+        },
+        {
+          "id": 7,
+          "title": "PVC PostgreSQL utilisé",
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+          "gridPos": { "x": 16, "y": 16, "w": 8, "h": 5 },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "pfe-prometheus" },
+              "expr": "kubelet_volume_stats_used_bytes{namespace=\"pfe-infra\"} / 1024 / 1024",
+              "legendFormat": "postgres PVC (Mo)"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "megabytes", "color": { "mode": "palette-classic" } }
+          }
+        }
+      ]
+    }

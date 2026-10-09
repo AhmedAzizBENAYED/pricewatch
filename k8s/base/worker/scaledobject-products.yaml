@@ -1,0 +1,19 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-products-scaler
+  namespace: pfe-app
+spec:
+  scaleTargetRef:
+    name: worker-products
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  pollingInterval: 15       # vérifie la queue toutes les 15s
+  cooldownPeriod: 60        # attend 60s avant de scale down
+  triggers:
+    - type: redis
+      metadata:
+        address: redis.pfe-infra.svc.cluster.local:6379
+        listName: products
+        listLength: "20"    # 1 replica par tranche de 20 tâches en attente
+        databaseIndex: "0"

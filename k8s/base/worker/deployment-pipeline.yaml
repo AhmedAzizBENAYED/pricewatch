@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-pipeline
+  namespace: pfe-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker-pipeline
+  template:
+    metadata:
+      labels:
+        app: worker-pipeline
+    spec:
+      terminationGracePeriodSeconds: 200
+      containers:
+        - name: worker
+          image: pfe-worker:latest
+          imagePullPolicy: Never
+          command: ["sh", "-c", "celery -A src.worker.worker.celery_app worker -Q celery --concurrency=2 --loglevel=info & celery -A src.worker.worker.celery_app beat --loglevel=info & wait"]
+          envFrom:
+            - configMapRef:
+                name: worker-config
+            - secretRef:
+                name: worker-secret
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "250m"
+          volumeMounts:
+            - name: reports-storage
+              mountPath: /app/reports
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - celery -A src.worker.worker.celery_app inspect ping -d celery@$HOSTNAME
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+      volumes:
+        - name: reports-storage
+          persistentVolumeClaim:
+            claimName: reports-pvc

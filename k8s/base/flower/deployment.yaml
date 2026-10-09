@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flower
+  namespace: pfe-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flower
+  template:
+    metadata:
+      labels:
+        app: flower
+    spec:
+      containers:
+        - name: flower
+          image: pfe-worker:latest
+          imagePullPolicy: Never
+          command: ["celery", "-A", "src.worker.worker.celery_app", "flower", "--port=5555", "--address=0.0.0.0"]
+          envFrom:
+            - configMapRef:
+                name: worker-config
+            - secretRef:
+                name: worker-secret
+          env:
+            - name: CELERY_BROKER_URL
+              value: redis://$(REDIS_HOST):$(REDIS_PORT)/0
+            - name: CELERY_RESULT_BACKEND
+              value: redis://$(REDIS_HOST):$(REDIS_PORT)/1
+            - name: FLOWER_UNAUTHENTICATED_API
+              value: "true"
+          ports:
+            - containerPort: 5555
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"

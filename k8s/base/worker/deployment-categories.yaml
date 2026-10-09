@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-categories
+  namespace: pfe-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker-categories
+  template:
+    metadata:
+      labels:
+        app: worker-categories
+    spec:
+      terminationGracePeriodSeconds: 200
+      containers:
+        - name: worker
+          image: pfe-worker:latest
+          imagePullPolicy: Never
+          command: ["sh", "-c", "celery -A src.worker.worker.celery_app worker -Q categories --concurrency=4 --loglevel=info"]
+          envFrom:
+            - configMapRef:
+                name: worker-config
+            - secretRef:
+                name: worker-secret
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "750m"
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - celery -A src.worker.worker.celery_app inspect ping -d celery@$HOSTNAME
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5

@@ -1,0 +1,54 @@
+# ── Grafana ────────────────────────────────────────────────────
+grafana:
+  enabled: true
+  adminPassword: "admin123"
+  service:
+    type: ClusterIP
+    port: 80
+  persistence:
+    enabled: false
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: monitoring
+    datasources:
+      enabled: true
+
+# ── Prometheus ─────────────────────────────────────────────────
+prometheus:
+  enabled: true
+  prometheusSpec:
+    retention: 24h
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "200m"
+
+# ── AlertManager ───────────────────────────────────────────────
+alertmanager:
+  enabled: false
+
+# ── Composants légers pour PFE ────────────────────────────────
+kubeStateMetrics:
+  enabled: true
+
+nodeExporter:
+  enabled: true
+
+kubelet:
+  enabled: true
+
+# ── Désactiver ce qui n'est pas nécessaire pour le PFE ────────
+kubeEtcd:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false

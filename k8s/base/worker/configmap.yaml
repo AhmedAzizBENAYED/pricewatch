@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: worker-config
+  namespace: pfe-app
+data:
+  POSTGRES_HOST: "postgres.pfe-infra.svc.cluster.local"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "pfe_db"
+  REDIS_HOST: "redis.pfe-infra.svc.cluster.local"
+  REDIS_PORT: "6379"
+  PLAYWRIGHT_SERVICE_URL: "http://playwright:3001"

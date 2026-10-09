@@ -1,0 +1,120 @@
+pipeline {
+    agent any
+
+    environment {
+        API_IMAGE          = "pfe-api:latest"
+        WORKER_IMAGE       = "pfe-worker:latest"
+        PLAYWRIGHT_IMAGE   = "pfe-playwright:latest"
+        FRONTEND_IMAGE     = "pfe-frontend:latest"
+        K3D_CLUSTER        = "pfe-cluster"
+        KUBECONFIG         = "/root/.kube/config"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scmGit(
+                    branches: [[name: env.GIT_BRANCH ?: '*/main']],
+                    extensions: [cloneOption(depth: 1, noTags: true, shallow: true)],
+                    userRemoteConfigs: scm.userRemoteConfigs
+                )
+                echo "Code cloné depuis GitHub : ${env.GIT_URL}"
+                echo "Branche : ${env.GIT_BRANCH}"
+            }
+        }
+
+        stage('Build API Image') {
+            steps {
+                echo "Build de l'image API..."
+                sh "docker build -f docker/Dockerfile-api -t ${API_IMAGE} ."
+            }
+        }
+
+        stage('Build Worker Image') {
+            steps {
+                echo "Build de l'image Worker..."
+                sh "docker build -f docker/Dockerfile-worker -t ${WORKER_IMAGE} ."
+            }
+        }
+
+        stage('Build Playwright Image') {
+            steps {
+                echo "Build de l'image Playwright..."
+                sh "docker build -f playwright-service/Dockerfile -t ${PLAYWRIGHT_IMAGE} ./playwright-service"
+            }
+        }
+
+        stage('Build Frontend Image') {
+            steps {
+                echo "Build de l'image Frontend..."
+                sh "docker build -f docker/Dockerfile-frontend -t ${FRONTEND_IMAGE} ."
+            }
+        }
+
+        stage('Import Images into k3d') {
+            steps {
+                echo "Import des images dans le cluster k3d..."
+                sh "k3d image import ${API_IMAGE} -c ${K3D_CLUSTER}"
+                sh "k3d image import ${WORKER_IMAGE} -c ${K3D_CLUSTER}"
+                sh "k3d image import ${PLAYWRIGHT_IMAGE} -c ${K3D_CLUSTER}"
+                sh "k3d image import ${FRONTEND_IMAGE} -c ${K3D_CLUSTER}"
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo "Déploiement sur Kubernetes..."
+                sh "kubectl apply -f k8s/base/namespaces/"
+                sh "kubectl apply -f k8s/base/postgres/"
+                sh "kubectl apply -f k8s/base/redis/"
+                sh "kubectl apply -f k8s/base/api/"
+                sh "kubectl apply -f k8s/base/worker/"
+                sh "kubectl apply -f k8s/base/flaresolverr/"
+                sh "kubectl apply -f k8s/base/playwright/"
+                sh "kubectl apply -f k8s/base/flower/"
+                sh "kubectl apply -f k8s/base/frontend/"
+            }
+        }
+
+        stage('Rollout Restart') {
+            steps {
+                echo "Redémarrage des déploiements..."
+                sh "kubectl rollout restart deployment api -n pfe-app"
+                sh "kubectl rollout status deployment api -n pfe-app --timeout=60s"
+
+                sh "kubectl rollout restart deployment flower -n pfe-app"
+                sh "kubectl rollout status deployment flower -n pfe-app --timeout=60s"
+
+                sh "kubectl rollout restart deployment worker-pipeline -n pfe-app"
+                sh "kubectl rollout status deployment worker-pipeline -n pfe-app --timeout=60s"
+
+                sh "kubectl rollout restart deployment worker-categories -n pfe-app"
+                sh "kubectl rollout status deployment worker-categories -n pfe-app --timeout=60s"
+
+                sh "kubectl rollout restart deployment worker-products -n pfe-app"
+                sh "kubectl rollout status deployment worker-products -n pfe-app --timeout=60s"
+
+                sh "kubectl rollout status deployment flaresolverr -n pfe-app --timeout=120s"
+
+                sh "kubectl rollout restart deployment playwright -n pfe-app"
+                sh "kubectl rollout status deployment playwright -n pfe-app --timeout=600s"
+
+                sh "kubectl rollout restart deployment frontend -n pfe-app"
+                sh "kubectl rollout status deployment frontend -n pfe-app --timeout=60s"
+            }
+        }
+
+
+    }
+
+    post {
+        success {
+            echo "✅ Pipeline terminé avec succès !"
+        }
+        failure {
+            echo "❌ Pipeline échoué. Vérifiez les logs."
+            cleanWs()
+        }
+    }
+}

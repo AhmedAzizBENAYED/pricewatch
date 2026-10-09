@@ -1,0 +1,21 @@
+# ── Étape 1 : image de base ──────────────────────────────────────
+FROM python:3.13-slim
+
+# ── Étape 2 : variables d'environnement ──────────────────────────
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+# ── Étape 3 : répertoire de travail ──────────────────────────────
+WORKDIR /app
+
+# ── Étape 4 : installer les dépendances ──────────────────────────
+COPY requirements-worker.txt .
+RUN pip install --upgrade pip && \
+    pip install -r requirements-worker.txt
+
+# ── Étape 5 : copier le code source ──────────────────────────────
+COPY src/ ./src/
+
+# ── Étape 6 : commande de démarrage ──────────────────────────────
+CMD ["celery", "-A", "src.worker.worker.celery_app", "worker", "--loglevel=info"]

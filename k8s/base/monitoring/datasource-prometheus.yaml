@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource-prometheus
+  namespace: monitoring
+  labels:
+    grafana_datasource: "1"
+data:
+  prometheus-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus-PFE
+        type: prometheus
+        uid: pfe-prometheus
+        url: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+        access: proxy
+        isDefault: false
+        editable: true
+        jsonData:
+          timeInterval: "15s"
+          httpMethod: POST

@@ -1,0 +1,248 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-scraping
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  scraping-dashboard.json: |
+    {
+      "title": "PFE — Scraping Observability",
+      "uid": "pfe-scraping-obs",
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": { "from": "now-6h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Résumé de la session (dernière)",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
+          "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+          "targets": [
+            {
+              "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+              "rawSql": "SELECT 'Catégories scrapées' AS metric, COUNT(DISTINCT category_url)::bigint AS value FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs) UNION ALL SELECT 'Pages totales', COUNT(*)::bigint FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs) UNION ALL SELECT 'Produits trouvés', COALESCE(SUM(products_found), 0)::bigint FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs) UNION ALL SELECT 'Catégories vides (0 produit)', COUNT(*)::bigint FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs) AND products_found = 0",
+              "format": "table"
+            }
+          ],
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "orientation": "horizontal",
+            "textMode": "auto",
+            "colorMode": "background"
+          },
+          "fieldConfig": {
+            "defaults": { "color": { "mode": "thresholds" } }
+          }
+        },
+        {
+          "id": 11,
+          "title": "Duplication des produits (URLs trouvées vs offres uniques)",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 4, "w": 24, "h": 4 },
+          "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+          "targets": [
+            {
+              "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+              "rawSql": "SELECT 'URLs trouvées (avec doublons)' AS metric, COALESCE(SUM(products_found), 0)::bigint AS value FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs) UNION ALL SELECT 'Offres uniques insérées', COUNT(*)::bigint FROM offres_normalisees WHERE scraper_id = (SELECT MAX(id) FROM scrappeurs) UNION ALL SELECT 'Doublons éliminés', GREATEST(0, COALESCE((SELECT SUM(products_found) FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs)), 0) - (SELECT COUNT(*) FROM offres_normalisees WHERE scraper_id = (SELECT MAX(id) FROM scrappeurs)))::bigint AS value UNION ALL SELECT 'Taux de duplication (%)', CASE WHEN COALESCE((SELECT SUM(products_found) FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs)), 0) = 0 THEN 0 ELSE ROUND(100.0 * GREATEST(0, COALESCE((SELECT SUM(products_found) FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs)), 0) - (SELECT COUNT(*) FROM offres_normalisees WHERE scraper_id = (SELECT MAX(id) FROM scrappeurs))) / COALESCE((SELECT SUM(products_found) FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs)), 1)) END::bigint",
+              "format": "table"
+            }
+          ],
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "orientation": "horizontal",
+            "textMode": "auto",
+            "colorMode": "background"
+          },
+          "fieldConfig": {
+            "defaults": { "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "blue", "value": null }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 2,
+          "title": "Catégories avec 0 produits (à investiguer)",
+          "type": "table",
+          "gridPos": { "x": 0, "y": 8, "w": 24, "h": 10 },
+          "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+          "targets": [
+            {
+              "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+              "rawSql": "SELECT site_id, category_url, page_number, duration_ms, scraped_at FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs) AND products_found = 0 ORDER BY site_id, category_url, page_number",
+              "format": "table"
+            }
+          ],
+          "options": {
+            "sortBy": [{ "displayName": "site_id" }]
+          },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "category_url" }, "properties": [{ "id": "custom.width", "value": 400 }] },
+              { "matcher": { "id": "byName", "options": "duration_ms" }, "properties": [{ "id": "unit", "value": "ms" }] }
+            ]
+          }
+        },
+        {
+          "id": 3,
+          "title": "Produits trouvés par catégorie — top 30 (dernière session)",
+          "type": "barchart",
+          "gridPos": { "x": 0, "y": 14, "w": 24, "h": 10 },
+          "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+          "targets": [
+            {
+              "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+              "rawSql": "SELECT category_url, SUM(products_found) AS total_products FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs) GROUP BY category_url ORDER BY total_products DESC LIMIT 30",
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "color": { "mode": "palette-classic" } }
+          },
+          "options": {
+            "xField": "category_url",
+            "orientation": "horizontal"
+          }
+        },
+        {
+          "id": 4,
+          "title": "Catégories avec plusieurs pages (pagination détectée)",
+          "type": "table",
+          "gridPos": { "x": 0, "y": 24, "w": 12, "h": 10 },
+          "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+          "targets": [
+            {
+              "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+              "rawSql": "SELECT site_id, category_url, MAX(page_number) AS pages_scrapees, SUM(products_found) AS total_produits FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs) GROUP BY site_id, category_url HAVING MAX(page_number) > 1 ORDER BY pages_scrapees DESC",
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "category_url" }, "properties": [{ "id": "custom.width", "value": 350 }] }
+            ]
+          }
+        },
+        {
+          "id": 5,
+          "title": "Pagination tronquée (has_next_page=1 sur dernière page)",
+          "type": "table",
+          "gridPos": { "x": 12, "y": 24, "w": 12, "h": 10 },
+          "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+          "targets": [
+            {
+              "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+              "rawSql": "SELECT site_id, category_url, MAX(page_number) AS derniere_page, SUM(products_found) AS total_produits FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs) AND has_next_page = 1 GROUP BY site_id, category_url HAVING MAX(page_number) = (SELECT MAX(s2.page_number) FROM scraping_category_stats s2 WHERE s2.scrapper_id = (SELECT MAX(id) FROM scrappeurs) AND s2.category_url = scraping_category_stats.category_url) ORDER BY derniere_page DESC LIMIT 20",
+              "format": "table"
+            }
+          ],
+          "description": "Catégories où la dernière page scrapée indiquait qu'il y avait une page suivante — pagination potentiellement tronquée"
+        },
+        {
+          "id": 6,
+          "title": "Durée de scraping par catégorie (ms)",
+          "type": "histogram",
+          "gridPos": { "x": 0, "y": 34, "w": 12, "h": 8 },
+          "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+          "targets": [
+            {
+              "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+              "rawSql": "SELECT duration_ms FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs) AND duration_ms IS NOT NULL",
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "ms", "color": { "mode": "palette-classic" } }
+          }
+        },
+        {
+          "id": 7,
+          "title": "Produits scrappés dans le temps (session actuelle)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 34, "w": 12, "h": 8 },
+          "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+          "targets": [
+            {
+              "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+              "rawSql": "SELECT scraped_at AS time, SUM(products_found) OVER (ORDER BY scraped_at) AS cumulative_products FROM scraping_category_stats WHERE scrapper_id = (SELECT MAX(id) FROM scrappeurs) ORDER BY scraped_at",
+              "format": "time_series"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+          }
+        },
+        {
+          "id": 8,
+          "title": "Produits non re-scrappés (stale)",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 42, "w": 8, "h": 5 },
+          "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+          "targets": [
+            {
+              "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+              "rawSql": "SELECT COUNT(*)::bigint AS stale_products FROM offres_normalisees WHERE scraper_id != (SELECT MAX(id) FROM scrappeurs)",
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 100 },
+                  { "color": "red", "value": 500 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 9,
+          "title": "Stale par site",
+          "type": "table",
+          "gridPos": { "x": 8, "y": 42, "w": 16, "h": 5 },
+          "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+          "targets": [
+            {
+              "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+              "rawSql": "SELECT offre_brute->>'site_id' AS site, COUNT(*)::bigint AS stale_count FROM offres_normalisees WHERE scraper_id != (SELECT MAX(id) FROM scrappeurs) GROUP BY site ORDER BY stale_count DESC",
+              "format": "table"
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "title": "Comparaison sessions — produits par session",
+          "type": "barchart",
+          "gridPos": { "x": 0, "y": 47, "w": 24, "h": 8 },
+          "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+          "targets": [
+            {
+              "datasource": { "type": "postgres", "uid": "pfe-postgres" },
+              "rawSql": "SELECT s.id::text AS session, s.statut, COALESCE(SUM(st.products_found), 0)::bigint AS total_produits FROM scrappeurs s LEFT JOIN scraping_category_stats st ON st.scrapper_id = s.id GROUP BY s.id, s.statut ORDER BY s.id DESC LIMIT 10",
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "color": { "mode": "palette-classic" } }
+          },
+          "options": {
+            "xField": "session",
+            "orientation": "vertical"
+          }
+        }
+      ]
+    }

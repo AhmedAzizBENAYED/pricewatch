@@ -1,0 +1,19 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-categories-scaler
+  namespace: pfe-app
+spec:
+  scaleTargetRef:
+    name: worker-categories
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  pollingInterval: 15
+  cooldownPeriod: 60
+  triggers:
+    - type: redis
+      metadata:
+        address: redis.pfe-infra.svc.cluster.local:6379
+        listName: categories
+        listLength: "5"     # 1 replica par tranche de 5 catégories en attente
+        databaseIndex: "0"

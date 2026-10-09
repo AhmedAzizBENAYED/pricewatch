@@ -1,0 +1,238 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-keda
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  keda-dashboard.json: |
+    {
+      "title": "PFE — KEDA Scaling & Queues",
+      "uid": "pfe-keda-scaling",
+      "timezone": "browser",
+      "refresh": "10s",
+      "time": { "from": "now-30m", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Queue depth — products (tâches en attente)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "keda_scaler_metrics_value{scaledObject=\"worker-products-scaler\"}",
+              "legendFormat": "products queue"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": { "fixedColor": "blue", "mode": "fixed" },
+              "custom": { "fillOpacity": 15 }
+            }
+          }
+        },
+        {
+          "id": 2,
+          "title": "Queue depth — categories (tâches en attente)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "keda_scaler_metrics_value{scaledObject=\"worker-categories-scaler\"}",
+              "legendFormat": "categories queue"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": { "fixedColor": "purple", "mode": "fixed" },
+              "custom": { "fillOpacity": 15 }
+            }
+          }
+        },
+        {
+          "id": 3,
+          "title": "worker-products — Replicas (current / desired / max)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube_horizontalpodautoscaler_status_current_replicas{namespace=\"pfe-app\", horizontalpodautoscaler=\"keda-hpa-worker-products-scaler\"}",
+              "legendFormat": "current"
+            },
+            {
+              "expr": "kube_horizontalpodautoscaler_status_desired_replicas{namespace=\"pfe-app\", horizontalpodautoscaler=\"keda-hpa-worker-products-scaler\"}",
+              "legendFormat": "desired"
+            },
+            {
+              "expr": "kube_horizontalpodautoscaler_spec_max_replicas{namespace=\"pfe-app\", horizontalpodautoscaler=\"keda-hpa-worker-products-scaler\"}",
+              "legendFormat": "max"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "color": { "mode": "palette-classic" }, "decimals": 0 },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "max" }, "properties": [{ "id": "custom.lineStyle", "value": { "dash": [10, 10], "fill": "dash" } }, { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+            ]
+          }
+        },
+        {
+          "id": 4,
+          "title": "worker-categories — Replicas (current / desired / max)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube_horizontalpodautoscaler_status_current_replicas{namespace=\"pfe-app\", horizontalpodautoscaler=\"keda-hpa-worker-categories-scaler\"}",
+              "legendFormat": "current"
+            },
+            {
+              "expr": "kube_horizontalpodautoscaler_status_desired_replicas{namespace=\"pfe-app\", horizontalpodautoscaler=\"keda-hpa-worker-categories-scaler\"}",
+              "legendFormat": "desired"
+            },
+            {
+              "expr": "kube_horizontalpodautoscaler_spec_max_replicas{namespace=\"pfe-app\", horizontalpodautoscaler=\"keda-hpa-worker-categories-scaler\"}",
+              "legendFormat": "max"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "color": { "mode": "palette-classic" }, "decimals": 0 },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "max" }, "properties": [{ "id": "custom.lineStyle", "value": { "dash": [10, 10], "fill": "dash" } }, { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+            ]
+          }
+        },
+        {
+          "id": 5,
+          "title": "playwright — Replicas (current / desired / max)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube_horizontalpodautoscaler_status_current_replicas{namespace=\"pfe-app\", horizontalpodautoscaler=\"playwright-hpa\"}",
+              "legendFormat": "current"
+            },
+            {
+              "expr": "kube_horizontalpodautoscaler_status_desired_replicas{namespace=\"pfe-app\", horizontalpodautoscaler=\"playwright-hpa\"}",
+              "legendFormat": "desired"
+            },
+            {
+              "expr": "kube_horizontalpodautoscaler_spec_max_replicas{namespace=\"pfe-app\", horizontalpodautoscaler=\"playwright-hpa\"}",
+              "legendFormat": "max"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "color": { "mode": "palette-classic" }, "decimals": 0 },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "max" }, "properties": [{ "id": "custom.lineStyle", "value": { "dash": [10, 10], "fill": "dash" } }, { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+            ]
+          }
+        },
+        {
+          "id": 6,
+          "title": "Pods Running par déploiement",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "expr": "kube_deployment_status_replicas_ready{namespace=\"pfe-app\", deployment=\"worker-products\"}",
+              "legendFormat": "worker-products"
+            },
+            {
+              "expr": "kube_deployment_status_replicas_ready{namespace=\"pfe-app\", deployment=\"worker-categories\"}",
+              "legendFormat": "worker-categories"
+            },
+            {
+              "expr": "kube_deployment_status_replicas_ready{namespace=\"pfe-app\", deployment=\"playwright\"}",
+              "legendFormat": "playwright"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "color": { "mode": "palette-classic" }, "decimals": 0 }
+          }
+        },
+        {
+          "id": 7,
+          "title": "État actuel — Replicas",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 24, "w": 8, "h": 5 },
+          "targets": [
+            {
+              "expr": "kube_deployment_status_replicas_ready{namespace=\"pfe-app\", deployment=~\"worker-products|worker-categories|playwright\"}",
+              "legendFormat": "{{deployment}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            }
+          },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal" }
+        },
+        {
+          "id": 8,
+          "title": "KEDA Scalers — Actifs",
+          "type": "stat",
+          "gridPos": { "x": 8, "y": 24, "w": 8, "h": 5 },
+          "targets": [
+            {
+              "expr": "keda_scaler_active{exported_namespace=\"pfe-app\"}",
+              "legendFormat": "{{scaledObject}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "mappings": [
+                { "type": "value", "options": { "0": { "text": "INACTIF", "color": "blue" }, "1": { "text": "ACTIF", "color": "green" } } }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "blue", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            }
+          },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal" }
+        },
+        {
+          "id": 9,
+          "title": "KEDA Erreurs de scaling",
+          "type": "stat",
+          "gridPos": { "x": 16, "y": 24, "w": 8, "h": 5 },
+          "targets": [
+            {
+              "expr": "sum(increase(keda_scaler_detail_errors_total{exported_namespace=\"pfe-app\"}[10m])) by (scaledObject)",
+              "legendFormat": "{{scaledObject}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 1 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            }
+          },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal" }
+        }
+      ]
+    }

@@ -1,0 +1,29 @@
+# ── Étape 1 : image de base ──────────────────────────────────────
+FROM python:3.13-slim
+
+# ── Étape 2 : variables d'environnement ──────────────────────────
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+# ── Étape 3 : répertoire de travail ──────────────────────────────
+WORKDIR /app
+
+# ── Étape 4 : installer les dépendances ──────────────────────────
+COPY requirements-api.txt .
+RUN pip install --upgrade pip && \
+    pip install -r requirements-api.txt
+
+# ── Étape 5 : copier le code source ──────────────────────────────
+COPY src/ ./src/
+COPY alembic/ ./alembic/
+COPY alembic.ini .
+
+# ── Étape 6 : créer le répertoire des rapports générés ───────────
+RUN mkdir -p /app/reports && chmod 777 /app/reports
+
+# ── Étape 7 : exposer le port ─────────────────────────────────────
+EXPOSE 8000
+
+# ── Étape 8 : commande de démarrage ──────────────────────────────
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
