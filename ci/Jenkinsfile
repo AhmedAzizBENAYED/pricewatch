@@ -6,6 +6,9 @@ pipeline {
         WORKER_IMAGE       = "pfe-worker:latest"
         PLAYWRIGHT_IMAGE   = "pfe-playwright:latest"
         FRONTEND_IMAGE     = "pfe-frontend:latest"
+        TEST_IMAGE         = "pfe-test:${BUILD_NUMBER}"
+        TEST_DB            = "pfe-test-db-${BUILD_NUMBER}"
+        TEST_NET           = "pfe-test-net-${BUILD_NUMBER}"
         K3D_CLUSTER        = "pfe-cluster"
         KUBECONFIG         = "/root/.kube/config"
     }
@@ -21,6 +24,40 @@ pipeline {
                 )
                 echo "Code cloné depuis GitHub : ${env.GIT_URL}"
                 echo "Branche : ${env.GIT_BRANCH}"
+            }
+        }
+
+        // Quality gate: nothing is built or deployed if a test fails
+        stage('Tests') {
+            steps {
+                sh "docker build -f docker/Dockerfile-test -t ${TEST_IMAGE} ."
+
+                echo "Tests unitaires..."
+                sh "docker run --rm ${TEST_IMAGE} pytest -m 'not integration'"
+
+                echo "Tests d'intégration (PostgreSQL + pgvector jetable)..."
+                sh """
+                    docker network create ${TEST_NET}
+                    docker run -d --rm --name ${TEST_DB} --network ${TEST_NET} \
+                        -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=pricewatch_test \
+                        pgvector/pgvector:pg16
+                    for i in \$(seq 1 30); do
+                        docker exec ${TEST_DB} pg_isready -U test -d pricewatch_test && break
+                        sleep 2
+                    done
+                    sleep 3
+                    docker run --rm --network ${TEST_NET} \
+                        -e TEST_DATABASE=1 -e POSTGRES_HOST=${TEST_DB} -e POSTGRES_PORT=5432 \
+                        -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=pricewatch_test \
+                        ${TEST_IMAGE} pytest -m integration
+                """
+            }
+            post {
+                always {
+                    sh "docker rm -f ${TEST_DB} || true"
+                    sh "docker network rm ${TEST_NET} || true"
+                    sh "docker rmi ${TEST_IMAGE} || true"
+                }
             }
         }
 

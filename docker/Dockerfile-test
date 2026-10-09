@@ -1,0 +1,20 @@
+# ── Test image: unit + integration test runner used by CI ────────
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+COPY requirements-api.txt requirements-dev.txt ./
+RUN pip install --upgrade pip && \
+    pip install -r requirements-dev.txt
+
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+COPY alembic/ ./alembic/
+COPY alembic.ini pytest.ini ./
+COPY tests/ ./tests/
+
+CMD ["pytest"]

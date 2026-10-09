@@ -7,3 +7,5 @@ frontend/dist
 data
 k8s
 ci
+.venv
+.pytest_cache
