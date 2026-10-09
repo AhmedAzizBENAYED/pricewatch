@@ -30,8 +30,6 @@ for _p in (_ROOT, _HERE):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-import io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 import re
 import csv
@@ -721,6 +719,7 @@ def run_for_parent(conn, parent_id, sites, use_llm, write_db, semantic_backend):
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows console
     parser = argparse.ArgumentParser()
     g = parser.add_mutually_exclusive_group(required=True)
     g.add_argument("--parent-id", type=int)

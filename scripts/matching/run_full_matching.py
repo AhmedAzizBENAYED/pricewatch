@@ -53,6 +53,7 @@ def _run(script_rel: str, extra_args: list[str]):
 
 
 def main():
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows console
     parser = argparse.ArgumentParser()
     g = parser.add_mutually_exclusive_group(required=True)
     g.add_argument("--parent-id", type=int)
