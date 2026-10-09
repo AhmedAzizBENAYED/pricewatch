@@ -1,0 +1,5 @@
+# Test tooling (CI + local). Installs the API stack plus the matching-pipeline extras.
+-r requirements-api.txt
+numpy
+rapidfuzz
+pytest==8.3.4
