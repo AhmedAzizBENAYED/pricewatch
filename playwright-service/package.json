@@ -1,0 +1,13 @@
+{
+  "name": "pfe-playwright-service",
+  "version": "1.0.0",
+  "description": "Playwright rendering service for PFE scraper",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "4.18.2",
+    "playwright": "1.40.0"
+  }
+}
