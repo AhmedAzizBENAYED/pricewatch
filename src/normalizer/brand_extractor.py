@@ -9,7 +9,7 @@ _MARQUE_KEYS = {
 
 
 def _norm_key(k: str) -> str:
-    return re.sub(r"[\s:·\-]+", "", k).lower()
+    return re.sub(r"[\s:·\-'’]+", "", k).lower()
 
 
 def _norm_brand(b: str) -> str:
