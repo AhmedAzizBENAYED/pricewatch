@@ -6,6 +6,7 @@
 
 Distributed scraping · cross-site product matching · real-time price events · agentic RAG assistant · LLM-generated reports
 
+[![Tests](https://github.com/AhmedAzizBENAYED/pricewatch/actions/workflows/tests.yml/badge.svg)](https://github.com/AhmedAzizBENAYED/pricewatch/actions/workflows/tests.yml)
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
 ![Celery](https://img.shields.io/badge/Celery-5.5-37814A?logo=celery&logoColor=white)
@@ -243,10 +244,12 @@ Roles: `MANAGER` (strategic view) · `RESP_MARKETING` (full access) · `EQUIPE_M
 │   ├── seed_db.py           # Seeds the 9 source sites
 │   ├── create_admin.py      # Creates the first back-office administrator
 │   └── seed_alert_rules.py  # Default alert rules per tenant
-├── docker/                  # Dockerfiles (api, worker, frontend) + nginx config
+├── docker/                  # Dockerfiles (api, worker, frontend, test) + nginx config
 ├── k8s/
 │   ├── base/                # Manifests: infra, apps, KEDA ScaledObjects, HPA, monitoring
 │   └── secrets.example/     # Secret templates (real secrets are git-ignored)
+├── tests/                   # Unit + integration tests (pytest)
+├── .github/workflows/       # GitHub Actions: tests on every push
 ├── ci/                      # Jenkinsfile + Jenkins image
 ├── docs/demo/               # README demo previews
 └── docker-compose.yml       # Full local stack
@@ -341,7 +344,7 @@ Add `127.0.0.1 api.pfe.local app.pfe.local` to your hosts file, then open http:/
 
 **Autoscaling:** the worker ScaledObjects need [KEDA](https://keda.sh), and the dashboards in `k8s/base/monitoring/` need the `kube-prometheus-stack` Helm chart (values in `values-monitoring.yaml`).
 
-**CI/CD:** [`ci/Jenkinsfile`](ci/Jenkinsfile) builds the four images, imports them into k3d, applies the manifests and performs rolling restarts. `ci/jenkins/` contains a Jenkins image with Docker, kubectl and k3d preinstalled.
+**CI/CD:** [`ci/Jenkinsfile`](ci/Jenkinsfile) first runs the test suite as a quality gate (unit tests, then integration tests against a disposable PostgreSQL + pgvector container). Only if they pass does it build the four images, import them into k3d, apply the manifests and perform rolling restarts. `ci/jenkins/` contains a Jenkins image with Docker, kubectl and k3d preinstalled. The same tests also run on every push through [GitHub Actions](.github/workflows/tests.yml).
 
 ### Running the matching pipeline
 
@@ -356,6 +359,30 @@ python scripts/matching/run_full_matching.py --all --llm --write-db
 ```
 
 Per-bucket CSV exports (`auto`, `llm_valide`, `review`, `no_match`, …) are written to `data/` for auditing.
+
+### Running the tests
+
+```bash
+pip install -r requirements-dev.txt
+
+# Unit tests: no services needed
+pytest -m "not integration"
+
+# Integration tests: need a throwaway PostgreSQL + pgvector database
+docker run -d --rm -p 55432:5432 -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test \
+  -e POSTGRES_DB=pricewatch_test pgvector/pgvector:pg16
+TEST_DATABASE=1 POSTGRES_HOST=localhost POSTGRES_PORT=55432 POSTGRES_USER=test \
+  POSTGRES_PASSWORD=test POSTGRES_DB=pricewatch_test pytest -m integration
+```
+
+| Suite | What it protects |
+|---|---|
+| Event detection | The 6 price/stock event types, the 2 % price threshold, priority rules, resilience when alerting fails |
+| Access control | JWT validation (forged, expired, malformed tokens), inactive users, role checks, plan gating, tenant scoping |
+| Agentic RAG flow | Adaptive routing, the CRAG fallback to the database agent, the Self-RAG retry loop and its iteration cap, RRF fusion |
+| Matching | Unit/format normalization (`8 Go` = `8GB`), hard-spec conflict and capacity penalties, the conservative default profile |
+| Normalization | Brand extraction from spec sheets and product names, per-site spec-key mapping, model extraction |
+| Database (integration) | All 36 migrations build a fresh database whose schema matches the models; tenants see only their assigned categories |
 
 ---
 
@@ -406,7 +433,7 @@ All endpoints are versioned under `/api/v1` and documented with OpenAPI at `/doc
 
 ## Roadmap
 
-- Automated test suite (pytest for the API and pipeline, Playwright end-to-end tests for the UI) running in CI
+- End-to-end UI tests (Playwright) and API endpoint tests, on top of the current unit and integration suites
 - Helm chart and GitOps deployment (Argo CD) to replace raw manifests
 - Scheduled scraping per site (Celery beat) instead of manual and API-triggered runs
 - Email and webhook delivery channels for alerts
