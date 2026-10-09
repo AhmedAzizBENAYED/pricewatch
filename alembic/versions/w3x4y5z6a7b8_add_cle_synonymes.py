@@ -14,6 +14,15 @@ depends_on = None
 
 
 def upgrade():
+    # cle_synonymes references caracteristique_cles, which was first created by hand on the
+    # dev database and only formalized later (x4y5z6a7b8c9). Create it here too, idempotently,
+    # so a fresh database can be built from migrations alone.
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS caracteristique_cles (
+            id  SERIAL PRIMARY KEY,
+            nom VARCHAR(255) UNIQUE NOT NULL
+        )
+    """)
     op.create_table(
         'cle_synonymes',
         sa.Column('id',               sa.Integer(),     primary_key=True),
