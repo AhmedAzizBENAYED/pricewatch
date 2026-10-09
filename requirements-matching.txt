@@ -1,0 +1,5 @@
+# Offline product-matching pipeline (scripts/matching/)
+-r requirements-worker.txt
+numpy
+rapidfuzz
+requests

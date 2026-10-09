@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Environment & secrets
+.env
+*.env
+!.env.example
+k8s/secrets/
+kubeconfig*.yaml
+
+# Generated matching artefacts
+data/
+scripts/**/checkpoints/
+scripts/*.json
+scripts/*.csv
+
+# Generated reports
+reports/
+
+# Logs
+*.log
+
+# IDE / OS / local tooling
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.claude/
+CLAUDE.md
+AGENTS.md
